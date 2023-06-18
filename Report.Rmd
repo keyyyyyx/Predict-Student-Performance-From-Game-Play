@@ -1,0 +1,653 @@
+---
+title: "Predict Student Performance From Game Play"
+author: "Yueqi Xu"
+date: "2023-05-23"
+output: 
+    pdf_document: 
+    fig_caption: yes
+    keep_tex: yes
+    number_sections: true
+header-includes:
+ \usepackage{booktabs}
+ \usepackage{longtable}
+ \usepackage{array}
+ \usepackage{multirow}
+ \usepackage{wrapfig}
+ \usepackage{float}
+ \floatplacement{figure}{H}
+---
+
+```{r setup, include=FALSE}
+### -----------------------------------------------------------
+### Setting up the packages and options:
+knitr::opts_chunk$set(echo = FALSE, message = FALSE)
+library(rigr)
+library(table1)
+library(xtable)
+library(tidyverse)
+library(imbalance)
+library(glmnet)
+library(caret)
+library(randomForest)
+# library(Boruta)
+### -----------------------------------------------------------
+### load datasets
+checkpoint1 <- read.csv("data/checkpoint1.csv", 
+                        colClasses = c("character", rep("numeric", 30)))
+checkpoint2 <- read.csv("data/checkpoint2.csv", 
+                        colClasses = c("character", rep("numeric", 46)))
+checkpoint3 <- read.csv("data/checkpoint3.csv", 
+                        colClasses = c("character", rep("numeric", 52)))
+labels <- read.csv("data/train_labels.csv")
+# fix id
+labels$question <- substring(labels$session_id, 20)
+labels$session_id <- substring(labels$session_id, 1, 17)
+```
+
+# Abstract
+
+This report focuses on the analysis and prediction of student performance in a game-based learning environment. The study aims to identify the optimal combination of features and choice of model for predicting student performance and to explore the association between a student's performance on earlier questions and their performance on subsequent questions within the same gameplay session. Additionally, the report investigates how predictive models for student performance can be integrated into real-time feedback mechanisms to enhance the learning experience.
+
+Logistic regression models and random forest models are employed. and the findings reveal that there is a significant association between a student's performance on earlier questions and their performance on subsequent questions within the same gameplay session. Moreover, the use of random forest models trained on balanced data with all available features as predictors yields the best prediction perofrmance.
+
+# 1 Topic: Knowledge Tracing in Game-based Learning
+
+Game-based learning is a highly engaging and effective teaching method that utilizes interactive games to facilitate student learning, and the effectiveness of game-based learning can be further enhanced by incorporating knowledge tracing techniques to track the knowledge and skills of individual students as they progress through the game. However, most game-based learning platforms do not sufficiently make use of knowledge tracing to support individual students. Therefore, the main objective of this project is to help advance research into knowledge-tracing methods for game-based learning, in order to to create more effective learning experiences for students.
+
+To achieve this objective, the project will involve developing a predictive model to predict whether a player will answer in-session questions correctly in a game-based learning environment. 
+
+# 2 Dataset: Game Logs From Jo Wilder
+
+The model will be built using the dataset from the [Jo Wilder online educational game](https://pbswisconsineducation.org/jowilder/play-the-game/), available on [Kaggle](https://www.kaggle.com/competitions/predict-student-performance-from-game-play/data). The dataset records game log of 23,562 game play sessions, contains information about game setting (full screen or not, music on/off, etc.), gameplay events (click, hover, etc.), and player performance (whether the in-session questions were answered correctly). 
+ 
+The original dataset contains 26,296,946 observations, where each observation represents an event such as a mouse click or hover in a game play session. Each game play session comprises hundreds or thousands of such events. Below is a list of the variables in the original game log dataset:
+\begin{itemize}
+  \item session\_id: the ID of the session the event took place in
+  \item index: the index of the event for the session
+  \item elapsed\_time: how much time has passed (in milliseconds) between the start of the session and when the event was recorded
+  \item event\_name: the name of the event type (e.g. object\_click, object\_hover, map\_click, etc.)
+  \item name: the event name (e.g. identifies whether a notebook\_click is is opening or closing the notebook)
+  \item level: what level of the game the event occurred in (0 to 22)
+  \item page: the page number of the event (only for notebook-related events)
+  \item room\_coor\_x: the coordinates of the click in reference to the in-game room (only for click events)
+  \item room\_coor\_y: the coordinates of the click in reference to the in-game room (only for click events)
+  \item screen\_coor\_x: the coordinates of the click in reference to the player’s screen (only for click events)
+  \item screen\_coor\_y: the coordinates of the click in reference to the player’s screen (only for click events)
+  \item hover\_duration: how long (in milliseconds) the hover happened for (only for hover events)
+  \item text: the text the player sees during this event
+  \item fqid: the fully qualified ID of the event
+  \item room\_fqid: the fully qualified ID of the room the event took place in
+  \item text\_fqid: the fully qualified ID of the
+  \item fullscreen: whether the player is in fullscreen mode
+  \item hq: whether the game is in high-quality
+  \item music: whether the game music is on or off
+  \item level\_group: which group of levels - and group of questions - this row belongs to (0-4, 5-12, 13-22)
+\end{itemize}
+
+Each game play session in the dataset consists of 18 questions, which are distributed across three checkpoints: 3 questions in the first checkpoint, 10 questions in the second checkpoint, and 5 questions in the third checkpoint. The student performance for each question is recorded in a separate dataset. The performance dataset contains two variables:
+\begin{itemize}
+  \item session\_id: the unique identifier for each game play session along with its corresponding question number
+  \item correct: binary variable indicating whether the question was answered correctly (1 for correct and 0 for incorrect)
+\end{itemize}
+
+The original dataset is aggregated by game play sessions and checkpoints, and relevant information such as game settings, user activities, and player performance (correctness of answers to questions given at each checkpoint) are grouped and summarized for each checkpoint in each game play session.
+
+# 3 Scientific Questions
+
+This study will focus on addressing the following three scientific questions:
+
+1. What is the optimal combination of features (e.g., time spent on task, number of mouse clicks, etc.) and choice of model for predicting student performance (correctness of answering questions) in a game play session?
+
+2. Is there an association between a student's performance on earlier questions and their performance on subsequent questions within the same game play session. In other words, can we predict a student's performance in latter questions based on their performance on previous questions in the same game play session?
+
+3. How can the predictive models for student performance (correctness of answers) during game play sessions be integrated into real-time feedback mechanisms in games to provide timely and personalized feedback to students, thereby enhancing their learning experience and performance in the game?
+
+# 4 Descriptive Statistics
+
+The following table presents the descriptive statistics of the related data for the first checkpoint:
+
+```{r DS, include=FALSE}
+### -----------------------------------------------------------
+### descriptive statistics
+ds <- descrip(checkpoint1[, -1])
+ds
+xtable(as.data.frame(ds[ , 3:9]))
+```
+
+\begin{table}[H]
+\centering
+\begin{tabular}{rrrrrrrr}
+  \hline
+ & Mean & Std Dev &  Min &  25\% &  Mdn &  75\% &  Max \\ 
+  \hline
+          fullscreen:   & 0.14 & 0.35 & 0.00 & 0.00 & 0.00 & 0.00 & 1.00 \\ 
+                    hq:   & 0.12 & 0.33 & 0.00 & 0.00 & 0.00 & 0.00 & 1.00 \\ 
+                 music:   & 0.93 & 0.26 & 0.00 & 1.00 & 1.00 & 1.00 & 1.00 \\ 
+        hover\_duration:   & 43722.46 & 1714429.29 & 0.00 & 8747.00 & 14100.50 & 23654.75 & 221783815.00 \\ 
+             n\_actions:   & 168.96 & 52.48 & 85.00 & 137.00 & 158.00 & 187.00 & 2628.00 \\ 
+          elapsed\_time:   & 1310528.62 & 23813846.31 & 846.00 & 199177.00 & 269920.00 & 367914.75 & 1986921747.00 \\ 
+          n\_event\_name:   & 10.01 & 0.97 & 7.00 & 9.00 & 10.00 & 11.00 & 11.00 \\ 
+                n\_name:   & 3.65 & 0.62 & 3.00 & 3.00 & 4.00 & 4.00 & 6.00 \\ 
+                n\_fqid:   & 24.84 & 2.43 & 19.00 & 23.00 & 24.00 & 26.00 & 35.00 \\ 
+           n\_room\_fqid:   & 6.41 & 0.49 & 5.00 & 6.00 & 6.00 & 7.00 & 7.00 \\ 
+           n\_text\_fqid:   & 14.55 & 2.16 & 9.00 & 13.00 & 14.00 & 16.00 & 26.00 \\ 
+      n\_notebook\_click:   & 3.47 & 4.41 & 0.00 & 0.00 & 2.00 & 6.00 & 86.00 \\ 
+        n\_object\_hover:   & 4.55 & 2.53 & 0.00 & 3.00 & 4.00 & 6.00 & 26.00 \\ 
+           n\_map\_hover:   & 1.92 & 1.50 & 0.00 & 1.00 & 2.00 & 3.00 & 22.00 \\ 
+      n\_cutscene\_click:   & 33.43 & 7.62 & 24.00 & 29.00 & 32.00 & 36.00 & 293.00 \\ 
+        n\_person\_click:   & 20.58 & 3.62 & 9.00 & 18.00 & 19.00 & 22.00 & 87.00 \\ 
+      n\_navigate\_click:   & 76.73 & 38.83 & 25.00 & 53.00 & 68.00 & 89.00 & 1874.00 \\ 
+   n\_observation\_click:   & 1.73 & 2.11 & 0.00 & 0.00 & 1.00 & 3.00 & 53.00 \\ 
+  n\_notification\_click:   & 7.78 & 2.13 & 5.00 & 6.00 & 8.00 & 9.00 & 32.00 \\ 
+        n\_object\_click:   & 15.49 & 12.35 & 6.00 & 9.00 & 12.00 & 17.00 & 451.00 \\ 
+           n\_map\_click:   & 2.29 & 1.33 & 1.00 & 2.00 & 2.00 & 2.00 & 121.00 \\ 
+               n\_page1:   & 0.69 & 1.25 & 0.00 & 0.00 & 0.00 & 2.00 & 20.00 \\ 
+               n\_page0:   & 2.78 & 3.78 & 0.00 & 0.00 & 2.00 & 4.00 & 83.00 \\ 
+   n\_historicalsociety:   & 125.73 & 39.84 & 61.00 & 102.00 & 116.00 & 138.00 & 1673.00 \\ 
+          n\_kohlcenter:   & 39.87 & 17.89 & 16.00 & 30.00 & 36.00 & 45.00 & 839.00 \\ 
+             n\_capitol:   & 3.36 & 3.30 & 2.00 & 2.00 & 2.00 & 3.00 & 149.00 \\ 
+           correctness:   & 0.88 & 0.19 & 0.00 & 0.67 & 1.00 & 1.00 & 1.00 \\ 
+                    q1:   & 0.73 & 0.45 & 0.00 & 0.00 & 1.00 & 1.00 & 1.00 \\ 
+                    q2:   & 0.98 & 0.14 & 0.00 & 1.00 & 1.00 & 1.00 & 1.00 \\ 
+                    q3:   & 0.93 & 0.25 & 0.00 & 1.00 & 1.00 & 1.00 & 1.00 \\ 
+   \hline
+\end{tabular}
+\end{table}
+
+Some findings from the table of descriptive statistics:
+
+- There are no missing values in the dataset.
+
+- Most players have music turned on during game play, but only a small portion have high quality and full screen settings enabled.
+
+- Potential outliers: The maximum \texttt{elapsed\_time} recorded is `r ds[6, 9]` milliseconds, which is equivalent to 23 days. This seems unlikely as each game play session typically takes only half to a few hours to complete, and thus the related observation may not be useful. Potential outliers are also observed for variables like \texttt{hover\_duration}, \texttt{n\_actions}, \texttt{n\_observation\_click}, and \texttt{n\_kohlcenter}, and require further investigation.
+
+The descriptive statistics for the related data of the second and third checkpoints also show similar findings.
+
+
+```{r outliers, include=FALSE}
+### -----------------------------------------------------------
+### Investigate outliers
+# compare shape of elapsed time before & after removing outliers
+boxplot(checkpoint1$elapsed_time)
+boxplot(checkpoint1$elapsed_time[checkpoint1$elapsed_time < 8.64e+7])
+boxplot(log(checkpoint1$elapsed_time[checkpoint1$elapsed_time < 8.64e+7]))
+hist(checkpoint1$elapsed_time)
+hist(checkpoint1$elapsed_time[checkpoint1$elapsed_time < 8.64e+7])
+hist(log(checkpoint1$elapsed_time))
+hist(log(checkpoint1$elapsed_time[checkpoint1$elapsed_time < 8.64e+7]))
+# inspect observations with long elapsed time
+checkpoint1[checkpoint1$elapsed_time > 8.64e+7, ]
+checkpoint1 %>% 
+  mutate(overtime = elapsed_time >= 8.64e+7) %>%
+  group_by(overtime) %>%
+  summarise(q1 =  mean(q1), q2 = mean(q2), q3 = mean(q3))
+# remove observations with elapse time > 1 day
+checkpoint1_reduced <- checkpoint1[checkpoint1$elapsed_time < 8.64e+7, ]
+checkpoint2_reduced <- checkpoint2[checkpoint2$elapsed_time < 8.64e+7, ]
+checkpoint3_reduced <- checkpoint3[checkpoint3$elapsed_time < 8.64e+7, ]
+```
+
+After further investigating the outliers, observations with \texttt{elapsed\_time} exceeding 1 day are removed. This is because a typical game play session for this game usually lasts half to an hour, with the content before the first checkpoint even able to be finished within 10 minutes. Therefore, it is highly unlikely for a player to spend more than a day on the first checkpoint. Such extreme \texttt{elapsed\_time} are more likely to be the result of data collection errors or players who just started the game and did not complete it. Thus, removing these observations can help to reduce potential errors and ensure data accuracy. A table of descriptive statistics of the updated data is presented below.
+
+```{r descrip, include=FALSE}
+# new descriptive statistics
+ds2 <- descrip(checkpoint1_reduced[, -1])
+ds2
+xtable(as.data.frame(ds2[ , 3:9]))
+```
+
+\begin{table}[H]
+\centering
+\begin{tabular}{rrrrrrrr}
+  \hline
+ & Mean & Std Dev &  Min &  25\% &  Mdn &  75\% &  Max \\ 
+  \hline
+          fullscreen:   & 0.14 & 0.35 & 0.00 & 0.00 & 0.00 & 0.00 & 1.00 \\ 
+                    hq:   & 0.12 & 0.33 & 0.00 & 0.00 & 0.00 & 0.00 & 1.00 \\ 
+                 music:   & 0.93 & 0.26 & 0.00 & 1.00 & 1.00 & 1.00 & 1.00 \\ 
+        hover\_duration:   & 34329.23 & 924050.74 & 0.00 & 8747.00 & 14098.00 & 23638.50 & 73568746.00 \\ 
+             n\_actions:   & 168.86 & 52.34 & 85.00 & 137.00 & 158.00 & 186.00 & 2628.00 \\ 
+          elapsed\_time:   & 673075.61 & 4146213.44 & 846.00 & 199099.00 & 269652.00 & 367255.50 & 85970623.00 \\ 
+          n\_event\_name:   & 10.00 & 0.97 & 7.00 & 9.00 & 10.00 & 11.00 & 11.00 \\ 
+                n\_name:   & 3.65 & 0.63 & 3.00 & 3.00 & 4.00 & 4.00 & 6.00 \\ 
+                n\_fqid:   & 24.84 & 2.43 & 19.00 & 23.00 & 24.00 & 26.00 & 35.00 \\ 
+           n\_room\_fqid:   & 6.41 & 0.49 & 5.00 & 6.00 & 6.00 & 7.00 & 7.00 \\ 
+           n\_text\_fqid:   & 14.55 & 2.16 & 9.00 & 13.00 & 14.00 & 16.00 & 26.00 \\ 
+      n\_notebook\_click:   & 3.47 & 4.41 & 0.00 & 0.00 & 2.00 & 6.00 & 86.00 \\ 
+        n\_object\_hover:   & 4.55 & 2.53 & 0.00 & 3.00 & 4.00 & 6.00 & 26.00 \\ 
+           n\_map\_hover:   & 1.92 & 1.50 & 0.00 & 1.00 & 2.00 & 3.00 & 22.00 \\ 
+      n\_cutscene\_click:   & 33.40 & 7.55 & 24.00 & 29.00 & 32.00 & 36.00 & 293.00 \\ 
+        n\_person\_click:   & 20.57 & 3.59 & 9.00 & 18.00 & 19.00 & 22.00 & 87.00 \\ 
+      n\_navigate\_click:   & 76.69 & 38.79 & 25.00 & 53.00 & 68.00 & 89.00 & 1874.00 \\ 
+   n\_observation\_click:   & 1.73 & 2.11 & 0.00 & 0.00 & 1.00 & 3.00 & 53.00 \\ 
+  n\_notification\_click:   & 7.77 & 2.12 & 5.00 & 6.00 & 8.00 & 9.00 & 32.00 \\ 
+        n\_object\_click:   & 15.47 & 12.33 & 6.00 & 9.00 & 12.00 & 17.00 & 451.00 \\ 
+           n\_map\_click:   & 2.29 & 1.33 & 1.00 & 2.00 & 2.00 & 2.00 & 121.00 \\ 
+               n\_page1:   & 0.69 & 1.25 & 0.00 & 0.00 & 0.00 & 2.00 & 20.00 \\ 
+               n\_page0:   & 2.78 & 3.78 & 0.00 & 0.00 & 2.00 & 4.00 & 83.00 \\ 
+   n\_historicalsociety:   & 125.65 & 39.73 & 61.00 & 102.00 & 116.00 & 138.00 & 1673.00 \\ 
+          n\_kohlcenter:   & 39.85 & 17.87 & 16.00 & 30.00 & 36.00 & 45.00 & 839.00 \\ 
+             n\_capitol:   & 3.36 & 3.30 & 2.00 & 2.00 & 2.00 & 3.00 & 149.00 \\ 
+           correctness:   & 0.88 & 0.19 & 0.00 & 0.67 & 1.00 & 1.00 & 1.00 \\ 
+                    q1:   & 0.73 & 0.45 & 0.00 & 0.00 & 1.00 & 1.00 & 1.00 \\ 
+                    q2:   & 0.98 & 0.14 & 0.00 & 1.00 & 1.00 & 1.00 & 1.00 \\ 
+                    q3:   & 0.93 & 0.25 & 0.00 & 1.00 & 1.00 & 1.00 & 1.00 \\ 
+   \hline
+\end{tabular}
+\end{table}
+
+Similar changes are made to the datasets \texttt{checkpoint2} and \texttt{checkpoint3}.
+
+A snippet of the table presents the descriptive statistics stratified by the correctness of question 3 is shown below: 
+
+```{r table1}
+### descriptive statistics, stratified by whether or not got q3 correct
+table1(~ fullscreen + hq + n_notification_click + n_object_click + n_page1 + 
+         n_page0 + q1 + q2| as.factor(q3) , data = checkpoint1_reduced)
+```
+
+It is worth noting that the average values of certain variables, such as \texttt{hq} and \texttt{n\_object\_click}, vary between players who answered question 3 correctly and those who did not. This observation suggests that these variables may be potential predictors in a model for question 3. Furthermore, there are differences in the correctness of questions 1 (\texttt{q1}) and 2 (\texttt{q2}) between players with different behavior on question 3. This finding implies a possible association between the correctness of earlier questions and the correctness of later ones.
+
+Based on the initial exploration of the dataset, it appears that the data aligns well with the scientific questions and objectives of the project. The information gathered from the game play sessions and checkpoints, including game settings, user activities, and player performance, is grouped and summarized in a way that will allow for analysis and modeling. The feasibility of the project is promising given the available data.
+
+The histograms of the distributions of continuous variables are presented below, both on their original scale and on a log scale. It can be observed that some variables, such as \texttt{hover\_duration} and \texttt{elapsed\_time}, have a large range and long right tails, indicating that a log-transformation may be appropriate. On the other hand, variables such as \texttt{n\_fqid} and \texttt{n\_text\_fqid} appear to be more normally distributed on their original scale and may not require log-transformation.
+
+A bar plot of overall correctness by question is also presented. Note that the correctness of questions 3, 13, and 18 are approximately 0.93, 0.27, and 0.95, respectively, which are imbalanced. Therefore, techniques used to adjust the class distribution, such as oversampling or undersampling, may be considered.
+
+```{r EDA}
+### -----------------------------------------------------------
+### EDA
+## checkpoint 1
+# filter continuous variables
+n_uniques <- apply(checkpoint1_reduced, 2, function(x){x %>% unique %>% length })
+vars <- names(n_uniques[n_uniques > 10])
+# plot histogram for continuous variables; original scale + log scale
+par(mfrow = c(3,3))
+for (var in vars[-1]) {
+  hist(checkpoint1_reduced[, var], xlab = var, main = paste("Histogram of", var))
+  hist(log(checkpoint1_reduced[, var] + 1), xlab = paste("log", var), 
+        main = paste("Histogram of log", var))
+}
+# transforming selected variables into log-scale
+cp1_transformed <- checkpoint1_reduced
+for (var in vars[-1]) {
+  cp1_transformed[, var] <- log(cp1_transformed[, var] + 1)
+}
+cp1_transformed <- cp1_transformed[, -1]
+
+# correctness of each question
+corr_by_quest <- labels %>% group_by(question) %>% summarise(correctness = mean(correct))
+corr_by_quest$question <- as.numeric(corr_by_quest$question)
+corr_by_quest <- corr_by_quest[order(corr_by_quest$question), ]
+ggplot(data = corr_by_quest, mapping = aes(x = as.factor(question), y = correctness)) + 
+  geom_col() +
+  ggtitle("Barplot of Correctness by Question") +
+  xlab("question")
+```
+
+```{r EDAhidden, include=FALSE}
+## checkpoint 2
+# filter continuous variables
+n_uniques <- apply(checkpoint2_reduced, 2, function(x){x %>% unique %>% length })
+vars <- names(n_uniques[n_uniques > 20])
+# plot histogram for continuous variables; original scale + log scale
+par(mfrow = c(3,3))
+for (var in vars[-1]) {
+  hist(checkpoint2_reduced[, var], xlab = var, main = paste("Histogram of", var))
+  hist(log(checkpoint2_reduced[, var] + 1), xlab = paste("log", var), 
+        main = paste("Histogram of log", var))
+}
+# transforming selected variables into log-scale
+cp2_transformed <- checkpoint2_reduced
+for (var in vars[-1]) {
+  cp2_transformed[, var] <- log(cp2_transformed[, var] + 1)
+}
+cp2_transformed <- cp2_transformed[, -1]
+
+## checkpoint 3
+# filter continuous variables
+n_uniques <- apply(checkpoint3_reduced, 2, function(x){x %>% unique %>% length })
+vars <- names(n_uniques[n_uniques > 20])
+# plot histogram for continuous variables; original scale + log scale
+par(mfrow = c(3,3))
+for (var in vars[-1]) {
+  hist(checkpoint3_reduced[, var], xlab = var, main = paste("Histogram of", var))
+  hist(log(checkpoint3_reduced[, var] + 1), xlab = paste("log", var), 
+        main = paste("Histogram of log", var))
+}
+# transforming selected variables into log-scale
+cp3_transformed <- checkpoint3_reduced
+for (var in vars[-1]) {
+  cp3_transformed[, var] <- log(cp3_transformed[, var] + 1)
+}
+cp3_transformed <- cp3_transformed[, -1]
+```
+
+# 5 Statistical Methods
+
+Recall that there are 18 questions in each gameplay session, and each gameplay session consists of three sections. At the end of each section, there is a checkpoint, where a number of questions are given as an assessment (3 questions in the first checkpoint, 10 in the second, and 5 in the third). The dataset used for analysis records the game settings and user behavior in each section up until the checkpoints, and user actions in each checkpoint are not recorded. That is, all questions in the same checkpoint share the same set of data, but the information available at each checkpoint is different.
+
+However, it's important to note that the sets of variables recorded in each section are different. The second section contains a few extra features than the first section, and the third section adds a few more new variables to the second section. Therefore, with the consideration of the difference in the amount of information and sets of features, I performed the analysis at the level of the checkpoint. And for simplicity, I only investigated questions 3, 13, and 18, which are the last question from each checkpoint.
+
+Given the relatively small number of variables compared to the sample size, all available features are retained in the predictive model. Thus, the answer to the first scientific question "optimal combination of features for predicting student performance in a gameplay session" is "all features available". Besides, I am also interested in exploring whether different models yield different prediction performance. Hence, both logistic regression and random forest models are employed for each of the three questions.
+
+Furthermore, we observed earlier that the correctness of questions 3, 13,and 18 are approximately 0.93, 0.27, and 0.95, respectively, which are highly imbalanced. To address this imbalance, models trained on oversampled data are also considered. As a result, for each of questions 3, 13, and 18, four models are fitted:
+
+1. Model 1a/2a/3a: A logistic regression model of the correctness of question 3/13/18 vs. the overall correctness of all previous questions, adjusting for all other features that appeared in the first/second/third checkpoint, using the original data.
+
+2. Model 1b/2b/3b: A logistic regression model of the correctness of question 3/13/18 vs. the overall correctness of all previous questions, adjusting for all other features that appeared in the first/second/third checkpoint, using the oversampled data.
+
+3. Model 4a/5a/6a: A random forest model predicting the correctness of question 3/13/18 given the overall correctness of all previous questions and all other features that appeared in the first/second/third checkpoint, using the original data. 
+
+3. Model 4b/5b/6b: A random forest model predicting the correctness of question 3/13/18 given the overall correctness of all previous questions and all other features that appeared in the first/second/third checkpoint, using the oversampled data. 
+
+The dataset is split into training and testing sets (80/20). All twelve models are fitted on the training set and evaluated on the testing set. The performance of models for the sample question is cross-compared in the result section.
+
+# 6 Result
+
+The resulting models for questions 3, 13 and 18 as well as their performance are summarized below. The model outputs are shown in the appendix. Overall, we have enough evidence from data that there is an association between a student’s performance on earlier questions and their performance on subsequent questions within the same game play session. 
+
+Furthermore, when oversampling was applied to balance the data, the random forest model exhibited slightly higher prediction accuracy on the testing set in general. Therefore, for predictive purposes, I recommend utilizing a random forest model trained on balanced data, with all available features as predictors.
+
+## 6.1 Question 3
+
+```{r q3logi}
+### -----------------------------------------------------------
+### Investigating Question 3: imbalance data
+# prepare data
+q3 <- cp1_transformed %>% 
+  mutate(correctness  = (q1 + q2)/2) %>% 
+  select(-c(q1, q2))
+q3$q3 <- as.factor(q3$q3)
+# split the data into training and test set
+set.seed(579)
+index <- q3$q3 %>% createDataPartition(p = 0.8, list = FALSE)
+q3_train  <- q3[index, ]
+q3_test <- q3[-index, ]
+
+# logistic regression model
+q3_lr <- glm(q3 ~ ., data = q3_train, family = "binomial")
+q3_coef <- summary(q3_lr)$coefficient
+q3_ci <- confint(q3_lr)
+```
+
+```{r q3rf, include=FALSE}
+# random forest
+q3_rf <- randomForest(q3 ~ ., data = q3_train, ntree = 500)
+# compare performance of logistic regression and random forest
+q3_pred_lr <- (predict(q3_lr, q3_test, type = "response") > 0.5) + 0
+q3_lr_corr <- mean(q3_pred_lr == q3_test$q3)
+q3_pred_rf <- predict(q3_rf, q3_test)
+q3_rf_corr <- mean(q3_pred_rf == q3_test$q3)
+```
+
+```{r q3os}
+### -----------------------------------------------------------
+### Investigating Question 3: balanced data
+# oversampling imbalanced data
+# q3_balanced <- rbind(q3, mwmote(q3, numInstances = 20000, classAttr = "q3"))
+q3_0s <- q3_train[q3_train$q3 == 0, ]
+set.seed(579)
+new_dat <- q3_0s[sample(nrow(q3_0s), 15000, replace = TRUE), ]
+q3_balanced <- rbind(q3_train, new_dat)
+# split the data into training and test set
+# set.seed(579)
+# index <- q3_balanced$q3 %>% createDataPartition(p = 0.8, list = FALSE)
+# q3_train  <- q3_balanced[index, ]
+# q3_test <- q3_balanced[-index, ]
+
+# logistic regression model
+q3_lr_os <- glm(q3 ~ ., data = q3_balanced, family = "binomial")
+
+# random forest
+q3_rf_os <- randomForest(q3 ~ ., data = q3_balanced, ntree = 500)
+# compare performance of logistic regression and random forest
+q3_pred_lr <- (predict(q3_lr_os, q3_test, type = "response") > 0.5) + 0
+q3_lr_corr_os <- mean(q3_pred_lr == q3_test$q3)
+q3_pred_rf <- predict(q3_rf_os, q3_test)
+q3_rf_corr_os <- mean(q3_pred_rf == q3_test$q3)
+```
+
+According to model 1a in the appendix, for two populations with the same game setting and actions but differ in the overall correctness of previous problems by 1 unit, we estimate that the odds ratio of answering question 3 correctly between these two groups is `r round(q3_coef[28, 1], 3)` (95% CI based on non-robust standard errors: [`r round(q3_ci[28, 1], 3)`, `r round(q3_ci[28, 2], 3)`]), with the group with higher overall correctness having higher probability of answering question 3 correctly.
+
+At the $5\%$ confidence interval, we are able to reject there is not association between the overall correctness of earlier questions in a gameplay session and the correctness of question 3 (p = `r signif(q3_coef[28, 4], 3)`). 
+
+Without oversampling the minority group, the logistic regression model achieved a testing accuracy of `r round(q3_lr_corr, 3)`, while the random forest model achieved a testing accuracy of `r round(q3_rf_corr, 3)`. After applying oversampling, the testing accuracy of the logistic regression model dropped  to `r round(q3_lr_corr_os, 3)`, while the testing accuracy of the random forest model remained at `r round(q3_rf_corr_os, 3)`.
+
+## 6.2 Question 13
+
+```{r q13logi}
+### -----------------------------------------------------------
+### Investigating Question 13: imbalance data
+# prepare data
+q13 <- cp2_transformed %>% 
+  mutate(correctness  = (cp1 * 3 + correctness * 10 - q13)/12) %>% 
+  select(-c(q1, q2, q3, q4, q5, q6, q7, q8, q9, q10, q11, q12, cp1))
+q13$q13 <- as.factor(q13$q13)
+# split the data into training and test set
+set.seed(579)
+index <- q13$q13 %>% createDataPartition(p = 0.8, list = FALSE)
+q13_train  <- q13[index, ]
+q13_test <- q13[-index, ]
+
+# logistic regression model
+q13_lr <- glm(q13 ~ ., data = q13_train, family = "binomial")
+q13_coef <- summary(q13_lr)$coefficient
+q13_ci <- confint(q13_lr)
+```
+
+
+```{r q13rf}
+# random forest
+q13_rf <- randomForest(q13 ~ ., data = q13_train, ntree = 500)
+# q13_rf
+# compare performance of logistic regression and random forest
+q13_pred_lr <- (predict(q13_lr, q13_test, type = "response") > 0.5) + 0
+q13_lr_corr <- mean(q13_pred_lr == q13_test$q13)
+q13_pred_rf <- predict(q13_rf, q13_test)
+q13_rf_corr <- mean(q13_pred_rf == q13_test$q13)
+```
+
+```{r q13os, include=FALSE}
+# generate new balanced data by ROSE
+q13_1s <- q13[q13_train$q13 == 1, ]
+set.seed(579)
+new_dat <- q13_1s[sample(nrow(q13_1s), 8000, replace = TRUE), ]
+q13_balanced <- rbind(q13_train, new_dat)
+# split the data into training and test set
+# set.seed(579)
+# index <- q13_balanced$q13 %>% createDataPartition(p = 0.8, list = FALSE)
+# q13_train  <- q13_balanced[index, ]
+# q13_test <- q13_balanced[-index, ]
+
+# logistic regression model
+q13_lr_os <- glm(q13 ~ ., data = q13_balanced, family = "binomial")
+
+# random forest
+q13_rf_os <- randomForest(q13 ~ ., data = q13_balanced, ntree = 500)
+
+# compare performance of logistic regression and random forest
+q13_pred_lr <- (predict(q13_lr_os, q13_test, type = "response") > 0.5) + 0
+q13_lr_corr_os <- mean(q13_pred_lr == q13_test$q13)
+q13_pred_rf <- predict(q13_rf_os, q13_test)
+q13_rf_corr_os <- mean(q13_pred_rf == q13_test$q13)
+```
+
+According to model 2a in the appendix, for two populations with the same game setting and actions but differ in the overall correctness of previous problems by 1 unit, we estimate that the odds ratio of answering question 13 correctly between these two groups is `r round(q13_coef[33, 1], 3)` (95% CI based on non-robust standard errors: [`r round(q13_ci[33, 1], 3)`, `r round(q13_ci[33, 2], 3)`]), with the group with higher overall correctness having higher probability of answering question 13 correctly.
+
+At the $5\%$ confidence interval, we are able to reject there is not association between the overall correctness of earlier questions in a gameplay session and the correctness of question 13 (p = `r signif(q13_coef[33, 4], 3)`). 
+
+Without oversampling the minority group, the logistic regression model achieved a testing accuracy of `r round(q13_lr_corr, 3)`, while the random forest model achieved a testing accuracy of `r round(q13_rf_corr, 3)`. After applying oversampling, the testing accuracy of the logistic regression model remained at `r round(q13_lr_corr_os, 3)`, while the testing accuracy of the random forest model increased to `r round(q13_rf_corr_os, 3)`.
+
+## 6.3 Question 18
+
+```{r q18logi}
+### -----------------------------------------------------------
+### Investigating Question 13: imbalance data
+# prepare data
+q18 <- cp3_transformed %>% 
+  mutate(correctness  = (cp1 * 3 + cp2 * 10 + correctness * 5 - q18)/17) %>% 
+  select(-c(q1, q2, q3, q4, q5, q6, q7, q8, q9, q10, q11, q12, q13, q14, 
+            q15, q16, q17, cp1, cp2))
+q18$q18 <- as.factor(q18$q18)
+# split the data into training and test set
+set.seed(579)
+index <- q18$q18 %>% createDataPartition(p = 0.8, list = FALSE)
+q18_train  <- q18[index, ]
+q18_test <- q18[-index, ]
+
+# logistic regression model
+q18_lr <- glm(q18 ~ ., data = q18_train, family = "binomial")
+q18_coef <- summary(q18_lr)$coefficient
+q18_ci <- confint(q18_lr)
+```
+
+
+```{r q18rf}
+# random forest
+q18_rf <- randomForest(q18 ~ ., data = q18_train, ntree = 500)
+# compare performance of logistic regression and random forest
+q18_pred_lr <- (predict(q18_lr, q18_test, type = "response") > 0.5) + 0
+q18_lr_corr <- mean(q18_pred_lr == q18_test$q18)
+q18_pred_rf <- predict(q18_rf, q18_test)
+q18_rf_corr <- mean(q18_pred_rf == q18_test$q18)
+```
+
+```{r q18os}
+### -----------------------------------------------------------
+### Investigating Question 13: balanced data
+# oversampling imbalanced data
+q18_0s <- q18[q18_train$q18 == 0, ]
+set.seed(579)
+new_dat <- q18_0s[sample(nrow(q18_0s), 20000, replace = TRUE), ]
+q18_balanced <- rbind(q18_train, new_dat)
+# split the data into training and test set
+# set.seed(579)
+# index <- q18_balanced$q18 %>% createDataPartition(p = 0.8, list = FALSE)
+# q18_train  <- q18_balanced[index, ]
+# q18_test <- q18_balanced[-index, ]
+
+# logistic regression model
+q18_lr_os <- glm(q18 ~ ., data = q18_balanced, family = "binomial")
+
+# random forest
+q18_rf_os <- randomForest(q18 ~ ., data = q18_balanced, ntree = 500)
+# compare performance of logistic regression and random forest
+q18_pred_lr <- (predict(q18_lr_os, q18_test, type = "response") > 0.5) + 0
+q18_lr_corr_os <- mean(q18_pred_lr == q18_test$q18)
+q18_pred_rf <- predict(q18_rf_os, q18_test)
+q18_rf_corr_os <- mean(q18_pred_rf == q18_test$q18)
+```
+
+According to model 2a in the appendix, for two populations with the same game setting and actions but differ in the overall correctness of previous problems by 1 unit, we estimate that the odds ratio of answering question 18 correctly between these two groups is `r round(q18_coef[38, 1], 3)` (95% CI based on non-robust standard errors: [`r round(q18_ci[38, 1], 3)`, `r round(q18_ci[38, 2], 3)`]), with the group with higher overall correctness having higher probability of answering question 18 correctly.
+
+At the $5\%$ confidence interval, we are able to reject there is not association between the overall correctness of earlier questions in a gameplay session and the correctness of question 18 (p = `r signif(q18_coef[38, 4], 3)`). 
+
+Without oversampling the minority group, the logistic regression model achieved a testing accuracy of `r round(q18_lr_corr, 3)`, while the random forest model achieved a testing accuracy of `r round(q18_rf_corr, 3)`. After applying oversampling, the testing accuracy of the logistic regression model stayed at `r round(q18_lr_corr_os, 3)`, while the testing accuracy of the random forest model improved slightly to `r round(q18_rf_corr_os, 3)`.
+
+# 7 Discussion (Assumption & Limitations)
+
+Based on previous analysis, it has been determined that at $5\%$ confidence level, there is evidence from data supporting the association between a student’s performance on earlier questions and their performance on subsequent questions within the same game play session. In terms of prediction, a random forest model with all available features as as predictor and balanced training data is recommended, as it has the best prediction accuracy on the testing set.
+
+In order to provide timely and personalized feedback to students, one potential application is to leverage this predictive model to continuously monitor the students' actions and performance during the gameplay session. A system can be built based on this model to offer feedback and guidance whenever it detects a need for further attention or improvement. However, further investigation and development are necessary to establish a more comprehensive and refined feedback mechanism.
+
+Other related assumptions and limitations of this analysis include:
+
+1. It is assumed that the observations are independent, i.e. the game play sessions are not related to one another. Situations such as players play the game repeatly are not taken into consideration, and may affect the predicting result. However, given the large sample size utilized in the analysis, the impact is expected to be minimal.
+2. The analysis is based solely on the data collected from Jo wilder online educational game, and may not generalize well to other educational games or populations. Care should be taken when applying these results to different contexts.
+3. The original data exhibited significant class imbalance, resulting in biased model performance for models trained on original data. The use of oversampling techniques helped address this issue and produced more reasonable confusion matrices. However, it is important to recognize that oversampling may introduce its own biases, and caution should be exercised when interpreting the results.
+
+# Sources
+
+Jo Wilder online educational game: https://pbswisconsineducation.org/jowilder/play-the-game/
+
+Kaggle - Predict Student Performance from Game Play: https://www.kaggle.com/competitions/predict-student-performance-from-game-play/data
+
+\clearpage
+
+# Appendix: Model outputs
+
+## Question 3
+
+### Model 1a: Logistic Regression Without Oversampling
+
+```{r out_q3_lr}
+### -----------------------------------------------------------
+### Display model outputs
+# question 3
+summary(q3_lr)
+```
+
+### Model 1b: Logistic Regression With Oversampling
+
+```{r out_q3_lr_OS}
+summary(q3_lr_os)
+```
+
+### Model 4a: Random Forest Without Oversampling
+
+```{r out_q3_rf}
+q3_rf
+```
+
+### Model 4b: Random Forest With Oversampling
+
+```{r out_q3_rf_OS}
+q3_rf_os
+```
+
+## Question 13
+
+### Model 2a: Logistic Regression Without oversampling
+
+```{r out_q13_lr}
+# question 13
+summary(q13_lr)
+```
+
+### Model 2b: Logistic Regression With Oversampling
+
+```{r out_q13_lr_OS}
+summary(q13_lr_os)
+```
+
+
+### Model 5a: Random Forest Without Oversampling
+
+```{r out_q13_rf}
+q13_rf
+```
+
+### Model 5b: Random Forest With Oversampling
+
+```{r out_q13_rf_OS}
+q13_rf_os
+```
+
+## Question 18
+
+### Model 3a: Logistic Regression Without oversampling
+
+```{r out_q18_lr}
+# question 18
+summary(q18_lr)
+```
+
+### Model 3b: Logistic Regression With Oversampling
+
+```{r out_q18_lr_OS}
+summary(q18_lr_os)
+```
+
+### Model 6a: Random Forest Without Oversampling
+
+```{r out_q18_rf}
+q18_rf
+```
+
+### Model 6b: Random Forest With Oversampling
+
+```{r out_q18_rf_OS}
+q18_rf_os
+```
