@@ -5,6 +5,14 @@ This project focuses on predicting student performance in a game-based learning 
 ## Dataset
 The dataset used in this project contains information about game settings, user behavior, and assessment data from gameplay sessions. Each gameplay session consists of three sections, and at the end of each section, there is a checkpoint where a set of questions is given as an assessment. The dataset provides information up until the checkpoints, and user actions within the checkpoints are not recorded. The dataset is provided in CSV format and can be downloaded from the [Kaggle competition page](https://www.kaggle.com/competitions/predict-student-performance-from-game-play/overview).
 
+## Project Structure
+The project is organized as follows:
+
+- `data/`: This directory contains the dataset files. Note that train.csv and test.csv are not included and will be added once the competition dataset is public.
+- `dataProcessing.R`: This file contains R scripts that prepare the data for analysis.
+- `report.Rmd`: This file contains R Markdown notebooks that showcase the data analysis, feature engineering, model training, and evaluation steps. 
+- `README.md`: This file provides an overview of the project and instructions for running the code.
+
 ## Dependencies
 The project has the following dependencies:
 - R
