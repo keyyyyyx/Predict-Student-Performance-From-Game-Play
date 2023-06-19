@@ -322,6 +322,11 @@ for (var in vars[-1]) {
   cp3_transformed[, var] <- log(cp3_transformed[, var] + 1)
 }
 cp3_transformed <- cp3_transformed[, -1]
+
+# Export transformed checkpoint 1, 2, 3 as csv
+write.csv(cp1_transformed, "data/cp1_transformed.csv", row.names=FALSE)
+write.csv(cp2_transformed, "data/cp2_transformed.csv", row.names=FALSE)
+write.csv(cp3_transformed, "data/cp3_transformed.csv", row.names=FALSE)
 ```
 
 # 5 Statistical Methods
