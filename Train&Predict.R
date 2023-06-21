@@ -1,12 +1,13 @@
 ### -----------------------------------------------------------
 ### Load packages
 library(tidyverse)
+library(randomForest)
 
 ### -----------------------------------------------------------
 ### Load data sets
-cp1_transformed <- read.csv("./data/cp1_transformed.csv")
-cp2_transformed <- read.csv("./data/cp2_transformed.csv")
-cp3_transformed <- read.csv("./data/cp3_transformed.csv")
+cp1_transformed <- read.csv("./data/cp1_transformed.csv", colClasses = c("character", rep("numeric", 30)))
+cp2_transformed <- read.csv("./data/cp2_transformed.csv", colClasses = c("character", rep("numeric", 46)))
+cp3_transformed <- read.csv("./data/cp3_transformed.csv", colClasses = c("character", rep("numeric", 57)))
 
 ### -----------------------------------------------------------
 ### Prepare data for each question
@@ -276,20 +277,350 @@ table(q18_balanced$q18)
 # remove used objects
 rm(q18, q18_0s, new_dat)
 
+### -----------------------------------------------------------
+### Train models
+# question 1
+q1_rf <- randomForest(q1 ~ . - session_id, data = q1_balanced, ntree = 500)
+# rm(q1_balanced)
+# question 2
+q2_rf <- randomForest(q2 ~ . - session_id, data = q2_balanced, ntree = 500)
+# rm(q2_balanced)
+# question 3
+q3_rf <- randomForest(q3 ~ . - session_id, data = q3_balanced, ntree = 500)
+# rm(q3_balanced)
+# question 4
+q4_rf <- randomForest(q4 ~ . - session_id, data = q4_balanced, ntree = 500)
+# rm(q4_balanced)
+# question 5
+q5_rf <- randomForest(q5 ~ . - session_id, data = q5_balanced, ntree = 500)
+# rm(q5_balanced)
+# question 6
+q6_rf <- randomForest(q6 ~ . - session_id, data = q6_balanced, ntree = 500)
+# rm(q6_balanced)
+# question 7
+q7_rf <- randomForest(q7 ~ . - session_id, data = q7_balanced, ntree = 500)
+# rm(q7_balanced)
+# question 8
+q8_rf <- randomForest(q8 ~ . - session_id, data = q8_balanced, ntree = 500)
+# rm(q8_balanced)
+# question 9
+q9_rf <- randomForest(q9 ~ . - session_id, data = q9_balanced, ntree = 500)
+# rm(q9_balanced)
+# question 10
+q10_rf <- randomForest(q10 ~ . - session_id, data = q10_balanced, ntree = 500)
+# rm(q10_balanced)
+# question 11
+q11_rf <- randomForest(q11 ~ . - session_id, data = q11_balanced, ntree = 500)
+# rm(q11_balanced)
+# question 12
+q12_rf <- randomForest(q12 ~ . - session_id, data = q12_balanced, ntree = 500)
+# rm(q12_balanced)
+# question 13
+q13_rf <- randomForest(q13 ~ . - session_id, data = q13_balanced, ntree = 500)
+# rm(q13_balanced)
+# question 14
+q14_rf <- randomForest(q14 ~ . - session_id, data = q14_balanced, ntree = 500)
+# rm(q14_balanced)
+# question 15
+q15_rf <- randomForest(q15 ~ . - session_id, data = q15_balanced, ntree = 500)
+# rm(q15_balanced)
+# question 16
+q16_rf <- randomForest(q16 ~ . - session_id, data = q16_balanced, ntree = 500)
+# rm(q16_balanced)
+# question 17
+q17_rf <- randomForest(q17 ~ . - session_id, data = q17_balanced, ntree = 500)
+# rm(q17_balanced)
+# question 18
+q18_rf <- randomForest(q18 ~ . - session_id, data = q18_balanced, ntree = 500)
+# rm(q18_balanced)
 
+### -----------------------------------------------------------
+### Prepare testing data for prediction
 
+# read data
+test <- read.csv("data/test.csv", 
+                 colClasses = c("character", "character", "numeric", "character", "character",
+                                "numeric", "numeric", "numeric",  "numeric",  "numeric",  
+                                "numeric", "numeric", "character", "character", "character", 
+                                "character", "numeric", "numeric", "numeric", "character"))
+# replace NAs in hover duration with 0
+test$hover_duration[is.na(test$hover_duration)] <- 0
+# replace NAs in page with -1
+test$page[is.na(test$page)] <- -1
 
+# group data by session id and levels, summarize covariates
+test_grouped <- test %>% 
+  group_by(session_id, level_group) %>% 
+  summarise(fullscreen = mean(fullscreen), hq = mean(hq), music = mean(music), 
+            hover_duration = sum(hover_duration), n_actions = n(), 
+            elapsed_time = max(elapsed_time)-min(elapsed_time), 
+            n_event_name = length(unique(event_name)), n_name = length(unique(name)), 
+            n_fqid = length(unique(fqid)), n_room_fqid = length(unique(room_fqid)), 
+            n_text_fqid = length(unique(text_fqid)), n_notebook_click = sum(event_name == "notebook_click"),
+            n_object_hover = sum(event_name == "object_hover"), n_map_hover = sum(event_name == "map_hover"),
+            n_cutscene_click = sum(event_name == "cutscene_click"), 
+            n_person_click = sum(event_name == "person_click"),
+            n_navigate_click = sum(event_name == "navigate_click"),
+            n_observation_click = sum(event_name == "observation_click"),
+            n_notification_click = sum(event_name == "notification_click"),
+            n_object_click = sum(event_name == "object_click"),
+            n_map_click = sum(event_name == "map_click"),
+            n_notebook_click = sum(event_name == "notebook_click"), n_page1 = sum(page == 1), 
+            n_page2 = sum(page == 2), n_page3 = sum(page == 3), n_page4 = sum(page == 4), 
+            n_page5 = sum(page == 5), n_page6 = sum(page == 6), n_page0 = sum(page == 0),
+            n_historicalsociety = sum(grepl("historicalsociety", room_fqid)),
+            n_kohlcenter = sum(grepl("kohlcenter", room_fqid)), n_capitol = sum(grepl("capitol", room_fqid)),
+            n_humanecology = sum(grepl("humanecology", room_fqid)), n_drycleaner = sum(grepl("drycleaner", room_fqid)),
+            n_library = sum(grepl("library", room_fqid)), n_wildlifecenter = sum(grepl("wildlife", room_fqid)),
+            n_flaghouse = sum(grepl("flaghouse", room_fqid)))
 
+# split dataset by checkpoint
+test_cp1 <- test_grouped %>% filter(level_group == "0-4")
+test_cp2 <- test_grouped %>% filter(level_group == "5-12")
+# checkpoint2$cp1 <- checkpoint1$correctness 
+test_cp3 <- test_grouped %>% filter(level_group == "13-22")
+# checkpoint3$cp1 <- checkpoint1$correctness
+# checkpoint3$cp2 <- checkpoint2$correctness
 
+# drop NA columns
+test_cp1 <- test_cp1 %>% select_if(~!any(is.na(.)))
+test_cp2 <- test_cp2 %>% select_if(~!any(is.na(.)))
+test_cp3 <- test_cp3 %>% select_if(~!any(is.na(.)))
 
+# drop unuseful columns
+col_rm <- colnames(test_cp1)[!(colnames(test_cp1) %in% colnames(q1_balanced))]
+test_cp1[, col_rm] <- NULL
+col_rm <- colnames(test_cp2)[!(colnames(test_cp2) %in% colnames(q4_balanced))]
+test_cp2[, col_rm] <- NULL
+col_rm <- colnames(test_cp3)[!(colnames(test_cp3) %in% colnames(q14_balanced))]
+test_cp3[, col_rm] <- NULL
+rm(col_rm)
 
+### -----------------------------------------------------------
+### Predict
+n <- nrow(test_cp1)
+results <- as.data.frame(matrix(nrow = 18 * n, ncol = 3)) 
+colnames(results) <- c("session_id", "correct", "question")
+ids <- test_cp1$session_id
+results[, 1] <- rep(ids, 18)
+results[, 3] <- rep(1:18, each = n)
 
+## Checkpoint 1
 
+# question 1
+q1_test <- test_cp1
+results[1:n, 2] <- predict(q1_rf, q1_test) %>% as.numeric() - 1
 
+# question 2
+correctness <- results %>% 
+  drop_na() %>% 
+  group_by(session_id) %>% 
+  summarise(correctness = mean(correct)) %>% 
+  select(correctness) %>% 
+  t() %>% 
+  as.vector()
+q2_test <- test_cp1
+q2_test$correctness <- correctness 
+results[(n+1):(2*n), 2] <- predict(q2_rf, q2_test) %>% as.numeric() - 1
 
+# question 3
+correctness <- results %>% 
+  drop_na() %>% 
+  group_by(session_id) %>% 
+  summarise(correctness = mean(correct)) %>% 
+  select(correctness) %>% 
+  t() %>% 
+  as.vector()
+q3_test <- test_cp1
+q3_test$correctness <- correctness 
+results[(2*n+1):(3*n), 2] <- predict(q3_rf, q3_test) %>% as.numeric() - 1
 
+## Checkpoint 2
 
+# question 4
+correctness <- results %>% 
+  drop_na() %>% 
+  group_by(session_id) %>% 
+  summarise(correctness = mean(correct)) %>% 
+  select(correctness) %>% 
+  t() %>% 
+  as.vector()
+q4_test <- test_cp2
+q4_test$correctness <- correctness 
+results[(3*n+1):(4*n), 2] <- predict(q4_rf, q4_test) %>% as.numeric() - 1
 
+# question 5
+correctness <- results %>% 
+  drop_na() %>% 
+  group_by(session_id) %>% 
+  summarise(correctness = mean(correct)) %>% 
+  select(correctness) %>% 
+  t() %>% 
+  as.vector()
+q5_test <- test_cp2
+q5_test$correctness <- correctness 
+results[(4*n+1):(5*n), 2] <- predict(q5_rf, q5_test) %>% as.numeric() - 1
+
+# question 6
+correctness <- results %>% 
+  drop_na() %>% 
+  group_by(session_id) %>% 
+  summarise(correctness = mean(correct)) %>% 
+  select(correctness) %>% 
+  t() %>% 
+  as.vector()
+q6_test <- test_cp2
+q6_test$correctness <- correctness 
+results[(5*n+1):(6*n), 2] <- predict(q6_rf, q6_test) %>% as.numeric() - 1
+
+# question 7
+correctness <- results %>% 
+  drop_na() %>% 
+  group_by(session_id) %>% 
+  summarise(correctness = mean(correct)) %>% 
+  select(correctness) %>% 
+  t() %>% 
+  as.vector()
+q7_test <- test_cp2
+q7_test$correctness <- correctness 
+results[(6*n+1):(7*n), 2] <- predict(q7_rf, q7_test) %>% as.numeric() - 1
+
+# question 8
+correctness <- results %>% 
+  drop_na() %>% 
+  group_by(session_id) %>% 
+  summarise(correctness = mean(correct)) %>% 
+  select(correctness) %>% 
+  t() %>% 
+  as.vector()
+q8_test <- test_cp2
+q8_test$correctness <- correctness 
+results[(7*n+1):(8*n), 2] <- predict(q8_rf, q8_test) %>% as.numeric() - 1
+
+# question 9
+correctness <- results %>% 
+  drop_na() %>% 
+  group_by(session_id) %>% 
+  summarise(correctness = mean(correct)) %>% 
+  select(correctness) %>% 
+  t() %>% 
+  as.vector()
+q9_test <- test_cp2
+q9_test$correctness <- correctness 
+results[(8*n+1):(9*n), 2] <- predict(q9_rf, q9_test) %>% as.numeric() - 1
+
+# question 10
+correctness <- results %>% 
+  drop_na() %>% 
+  group_by(session_id) %>% 
+  summarise(correctness = mean(correct)) %>% 
+  select(correctness) %>% 
+  t() %>% 
+  as.vector()
+q10_test <- test_cp2
+q10_test$correctness <- correctness 
+results[(9*n+1):(10*n), 2] <- predict(q10_rf, q10_test) %>% as.numeric() - 1
+
+# question 11
+correctness <- results %>% 
+  drop_na() %>% 
+  group_by(session_id) %>% 
+  summarise(correctness = mean(correct)) %>% 
+  select(correctness) %>% 
+  t() %>% 
+  as.vector()
+q11_test <- test_cp2
+q11_test$correctness <- correctness 
+results[(10*n+1):(11*n), 2] <- predict(q11_rf, q11_test) %>% as.numeric() - 1
+
+# question 12
+correctness <- results %>% 
+  drop_na() %>% 
+  group_by(session_id) %>% 
+  summarise(correctness = mean(correct)) %>% 
+  select(correctness) %>% 
+  t() %>% 
+  as.vector()
+q12_test <- test_cp2
+q12_test$correctness <- correctness 
+results[(11*n+1):(12*n), 2] <- predict(q12_rf, q12_test) %>% as.numeric() - 1
+
+# question 13
+correctness <- results %>% 
+  drop_na() %>% 
+  group_by(session_id) %>% 
+  summarise(correctness = mean(correct)) %>% 
+  select(correctness) %>% 
+  t() %>% 
+  as.vector()
+q13_test <- test_cp2
+q13_test$correctness <- correctness 
+results[(12*n+1):(13*n), 2] <- predict(q13_rf, q13_test) %>% as.numeric() - 1
+
+# Checkpoint 3
+
+# question 14
+correctness <- results %>% 
+  drop_na() %>% 
+  group_by(session_id) %>% 
+  summarise(correctness = mean(correct)) %>% 
+  select(correctness) %>% 
+  t() %>% 
+  as.vector()
+q14_test <- test_cp3
+q14_test$correctness <- correctness 
+results[(13*n+1):(14*n), 2] <- predict(q14_rf, q14_test) %>% as.numeric() - 1
+
+# question 15
+correctness <- results %>% 
+  drop_na() %>% 
+  group_by(session_id) %>% 
+  summarise(correctness = mean(correct)) %>% 
+  select(correctness) %>% 
+  t() %>% 
+  as.vector()
+q15_test <- test_cp3
+q15_test$correctness <- correctness 
+results[(14*n+1):(15*n), 2] <- predict(q15_rf, q15_test) %>% as.numeric() - 1
+
+# question 16
+correctness <- results %>% 
+  drop_na() %>% 
+  group_by(session_id) %>% 
+  summarise(correctness = mean(correct)) %>% 
+  select(correctness) %>% 
+  t() %>% 
+  as.vector()
+q16_test <- test_cp3
+q16_test$correctness <- correctness 
+results[(15*n+1):(16*n), 2] <- predict(q16_rf, q16_test) %>% as.numeric() - 1
+
+# question 17
+correctness <- results %>% 
+  drop_na() %>% 
+  group_by(session_id) %>% 
+  summarise(correctness = mean(correct)) %>% 
+  select(correctness) %>% 
+  t() %>% 
+  as.vector()
+q17_test <- test_cp3
+q17_test$correctness <- correctness 
+results[(16*n+1):(17*n), 2] <- predict(q17_rf, q17_test) %>% as.numeric() - 1
+
+# question 18
+correctness <- results %>% 
+  drop_na() %>% 
+  group_by(session_id) %>% 
+  summarise(correctness = mean(correct)) %>% 
+  select(correctness) %>% 
+  t() %>% 
+  as.vector()
+q18_test <- test_cp3
+q18_test$correctness <- correctness 
+results[(17*n+1):(18*n), 2] <- predict(q18_rf, q18_test) %>% as.numeric() - 1
+
+results$session_id <- paste0(results$session_id, "_q", results$question)
+results$question <- NULL
 
 
 

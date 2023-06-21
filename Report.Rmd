@@ -37,7 +37,7 @@ checkpoint1 <- read.csv("data/checkpoint1.csv",
 checkpoint2 <- read.csv("data/checkpoint2.csv", 
                         colClasses = c("character", rep("numeric", 46)))
 checkpoint3 <- read.csv("data/checkpoint3.csv", 
-                        colClasses = c("character", rep("numeric", 52)))
+                        colClasses = c("character", rep("numeric", 57)))
 labels <- read.csv("data/train_labels.csv")
 # fix id
 labels$question <- substring(labels$session_id, 20)
@@ -274,7 +274,7 @@ cp1_transformed <- checkpoint1_reduced
 for (var in vars[-1]) {
   cp1_transformed[, var] <- log(cp1_transformed[, var] + 1)
 }
-cp1_transformed <- cp1_transformed[, -1]
+# cp1_transformed <- cp1_transformed[, -1]
 
 # correctness of each question
 corr_by_quest <- labels %>% group_by(question) %>% summarise(correctness = mean(correct))
@@ -303,7 +303,7 @@ cp2_transformed <- checkpoint2_reduced
 for (var in vars[-1]) {
   cp2_transformed[, var] <- log(cp2_transformed[, var] + 1)
 }
-cp2_transformed <- cp2_transformed[, -1]
+# cp2_transformed <- cp2_transformed[, -1]
 
 ## checkpoint 3
 # filter continuous variables
@@ -321,7 +321,7 @@ cp3_transformed <- checkpoint3_reduced
 for (var in vars[-1]) {
   cp3_transformed[, var] <- log(cp3_transformed[, var] + 1)
 }
-cp3_transformed <- cp3_transformed[, -1]
+# cp3_transformed <- cp3_transformed[, -1]
 
 # Export transformed checkpoint 1, 2, 3 as csv
 write.csv(cp1_transformed, "data/cp1_transformed.csv", row.names=FALSE)
