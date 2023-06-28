@@ -401,222 +401,187 @@ rm(col_rm)
 n <- nrow(test_cp1)
 results <- as.data.frame(matrix(nrow = 18 * n, ncol = 3)) 
 colnames(results) <- c("session_id", "correct", "question")
-ids <- test_cp1$session_id
-results[, 1] <- rep(ids, 18)
 results[, 3] <- rep(1:18, each = n)
 
 ## Checkpoint 1
 
 # question 1
 q1_test <- test_cp1
+results[1:n, 1] <- q1_test$session_id
 results[1:n, 2] <- predict(q1_rf, q1_test) %>% as.numeric() - 1
 
 # question 2
+q2_test <- test_cp1
 correctness <- results %>% 
   drop_na() %>% 
   group_by(session_id) %>% 
-  summarise(correctness = mean(correct)) %>% 
-  select(correctness) %>% 
-  t() %>% 
-  as.vector()
-q2_test <- test_cp1
-q2_test$correctness <- correctness 
+  summarise(correctness = mean(correct)) 
+q2_test <- left_join(q2_test, correctness, by = "session_id")
+results[(n+1):(2*n), 1] <- q2_test$session_id
 results[(n+1):(2*n), 2] <- predict(q2_rf, q2_test) %>% as.numeric() - 1
 
 # question 3
+q3_test <- test_cp1
 correctness <- results %>% 
   drop_na() %>% 
   group_by(session_id) %>% 
-  summarise(correctness = mean(correct)) %>% 
-  select(correctness) %>% 
-  t() %>% 
-  as.vector()
-q3_test <- test_cp1
-q3_test$correctness <- correctness 
+  summarise(correctness = mean(correct)) 
+q3_test <- left_join(q3_test, correctness, by = "session_id")
+results[(2*n+1):(3*n), 1] <- q3_test$session_id
 results[(2*n+1):(3*n), 2] <- predict(q3_rf, q3_test) %>% as.numeric() - 1
 
 ## Checkpoint 2
 
 # question 4
+q4_test <- test_cp2
 correctness <- results %>% 
   drop_na() %>% 
   group_by(session_id) %>% 
-  summarise(correctness = mean(correct)) %>% 
-  select(correctness) %>% 
-  t() %>% 
-  as.vector()
-q4_test <- test_cp2
-q4_test$correctness <- correctness 
+  summarise(correctness = mean(correct)) 
+q4_test <- left_join(q4_test, correctness, by = "session_id")
+results[(3*n+1):(4*n), 1] <- q4_test$session_id
 results[(3*n+1):(4*n), 2] <- predict(q4_rf, q4_test) %>% as.numeric() - 1
 
 # question 5
+q5_test <- test_cp2
 correctness <- results %>% 
   drop_na() %>% 
   group_by(session_id) %>% 
-  summarise(correctness = mean(correct)) %>% 
-  select(correctness) %>% 
-  t() %>% 
-  as.vector()
-q5_test <- test_cp2
-q5_test$correctness <- correctness 
+  summarise(correctness = mean(correct)) 
+q5_test <- left_join(q5_test, correctness, by = "session_id")
+results[(4*n+1):(5*n), 1] <- q5_test$session_id
 results[(4*n+1):(5*n), 2] <- predict(q5_rf, q5_test) %>% as.numeric() - 1
 
 # question 6
+q6_test <- test_cp2
 correctness <- results %>% 
   drop_na() %>% 
   group_by(session_id) %>% 
-  summarise(correctness = mean(correct)) %>% 
-  select(correctness) %>% 
-  t() %>% 
-  as.vector()
-q6_test <- test_cp2
-q6_test$correctness <- correctness 
+  summarise(correctness = mean(correct)) 
+q6_test <- left_join(q6_test, correctness, by = "session_id")
+results[(5*n+1):(6*n), 1] <- q6_test$session_id
 results[(5*n+1):(6*n), 2] <- predict(q6_rf, q6_test) %>% as.numeric() - 1
 
 # question 7
+q7_test <- test_cp2
 correctness <- results %>% 
   drop_na() %>% 
   group_by(session_id) %>% 
-  summarise(correctness = mean(correct)) %>% 
-  select(correctness) %>% 
-  t() %>% 
-  as.vector()
-q7_test <- test_cp2
-q7_test$correctness <- correctness 
+  summarise(correctness = mean(correct)) 
+q7_test <- left_join(q7_test, correctness, by = "session_id")
+results[(6*n+1):(7*n), 1] <- q7_test$session_id
 results[(6*n+1):(7*n), 2] <- predict(q7_rf, q7_test) %>% as.numeric() - 1
 
 # question 8
+q8_test <- test_cp2
 correctness <- results %>% 
   drop_na() %>% 
   group_by(session_id) %>% 
-  summarise(correctness = mean(correct)) %>% 
-  select(correctness) %>% 
-  t() %>% 
-  as.vector()
-q8_test <- test_cp2
-q8_test$correctness <- correctness 
+  summarise(correctness = mean(correct)) 
+q8_test <- left_join(q8_test, correctness, by = "session_id")
+results[(7*n+1):(8*n), 1] <- q8_test$session_id
 results[(7*n+1):(8*n), 2] <- predict(q8_rf, q8_test) %>% as.numeric() - 1
 
 # question 9
+q9_test <- test_cp2
 correctness <- results %>% 
   drop_na() %>% 
   group_by(session_id) %>% 
-  summarise(correctness = mean(correct)) %>% 
-  select(correctness) %>% 
-  t() %>% 
-  as.vector()
-q9_test <- test_cp2
-q9_test$correctness <- correctness 
+  summarise(correctness = mean(correct)) 
+q9_test <- left_join(q9_test, correctness, by = "session_id")
+results[(8*n+1):(9*n), 1] <- q9_test$session_id
 results[(8*n+1):(9*n), 2] <- predict(q9_rf, q9_test) %>% as.numeric() - 1
 
 # question 10
+q10_test <- test_cp2
 correctness <- results %>% 
   drop_na() %>% 
   group_by(session_id) %>% 
-  summarise(correctness = mean(correct)) %>% 
-  select(correctness) %>% 
-  t() %>% 
-  as.vector()
-q10_test <- test_cp2
-q10_test$correctness <- correctness 
+  summarise(correctness = mean(correct)) 
+q10_test <- left_join(q10_test, correctness, by = "session_id")
+results[(9*n+1):(10*n), 1] <- q10_test$session_id
 results[(9*n+1):(10*n), 2] <- predict(q10_rf, q10_test) %>% as.numeric() - 1
 
 # question 11
+q11_test <- test_cp2
 correctness <- results %>% 
   drop_na() %>% 
   group_by(session_id) %>% 
-  summarise(correctness = mean(correct)) %>% 
-  select(correctness) %>% 
-  t() %>% 
-  as.vector()
-q11_test <- test_cp2
-q11_test$correctness <- correctness 
+  summarise(correctness = mean(correct)) 
+q11_test <- left_join(q11_test, correctness, by = "session_id")
+results[(10*n+1):(11*n), 1] <- q11_test$session_id
 results[(10*n+1):(11*n), 2] <- predict(q11_rf, q11_test) %>% as.numeric() - 1
 
 # question 12
+q12_test <- test_cp2
 correctness <- results %>% 
   drop_na() %>% 
   group_by(session_id) %>% 
-  summarise(correctness = mean(correct)) %>% 
-  select(correctness) %>% 
-  t() %>% 
-  as.vector()
-q12_test <- test_cp2
-q12_test$correctness <- correctness 
+  summarise(correctness = mean(correct)) 
+q12_test <- left_join(q12_test, correctness, by = "session_id")
+results[(11*n+1):(12*n), 1] <- q12_test$session_id
 results[(11*n+1):(12*n), 2] <- predict(q12_rf, q12_test) %>% as.numeric() - 1
 
 # question 13
+q13_test <- test_cp2
 correctness <- results %>% 
   drop_na() %>% 
   group_by(session_id) %>% 
-  summarise(correctness = mean(correct)) %>% 
-  select(correctness) %>% 
-  t() %>% 
-  as.vector()
-q13_test <- test_cp2
-q13_test$correctness <- correctness 
+  summarise(correctness = mean(correct)) 
+q13_test <- left_join(q13_test, correctness, by = "session_id")
+results[(12*n+1):(13*n), 1] <- q13_test$session_id
 results[(12*n+1):(13*n), 2] <- predict(q13_rf, q13_test) %>% as.numeric() - 1
 
 # Checkpoint 3
 
 # question 14
+q14_test <- test_cp3
 correctness <- results %>% 
   drop_na() %>% 
   group_by(session_id) %>% 
-  summarise(correctness = mean(correct)) %>% 
-  select(correctness) %>% 
-  t() %>% 
-  as.vector()
-q14_test <- test_cp3
-q14_test$correctness <- correctness 
+  summarise(correctness = mean(correct)) 
+q14_test <- left_join(q14_test, correctness, by = "session_id")
+results[(13*n+1):(14*n), 1] <- q14_test$session_id
 results[(13*n+1):(14*n), 2] <- predict(q14_rf, q14_test) %>% as.numeric() - 1
 
 # question 15
+q15_test <- test_cp3
 correctness <- results %>% 
   drop_na() %>% 
   group_by(session_id) %>% 
-  summarise(correctness = mean(correct)) %>% 
-  select(correctness) %>% 
-  t() %>% 
-  as.vector()
-q15_test <- test_cp3
-q15_test$correctness <- correctness 
+  summarise(correctness = mean(correct)) 
+q15_test <- left_join(q15_test, correctness, by = "session_id")
+results[(14*n+1):(15*n), 1] <- q15_test$session_id
 results[(14*n+1):(15*n), 2] <- predict(q15_rf, q15_test) %>% as.numeric() - 1
 
 # question 16
+q16_test <- test_cp3
 correctness <- results %>% 
   drop_na() %>% 
   group_by(session_id) %>% 
-  summarise(correctness = mean(correct)) %>% 
-  select(correctness) %>% 
-  t() %>% 
-  as.vector()
-q16_test <- test_cp3
-q16_test$correctness <- correctness 
+  summarise(correctness = mean(correct)) 
+q16_test <- left_join(q16_test, correctness, by = "session_id")
+results[(15*n+1):(16*n), 1] <- q16_test$session_id
 results[(15*n+1):(16*n), 2] <- predict(q16_rf, q16_test) %>% as.numeric() - 1
 
 # question 17
+q17_test <- test_cp3
 correctness <- results %>% 
   drop_na() %>% 
   group_by(session_id) %>% 
-  summarise(correctness = mean(correct)) %>% 
-  select(correctness) %>% 
-  t() %>% 
-  as.vector()
-q17_test <- test_cp3
-q17_test$correctness <- correctness 
+  summarise(correctness = mean(correct)) 
+q17_test <- left_join(q17_test, correctness, by = "session_id")
+results[(16*n+1):(17*n), 1] <- q17_test$session_id
 results[(16*n+1):(17*n), 2] <- predict(q17_rf, q17_test) %>% as.numeric() - 1
 
 # question 18
+q18_test <- test_cp3
 correctness <- results %>% 
   drop_na() %>% 
   group_by(session_id) %>% 
-  summarise(correctness = mean(correct)) %>% 
-  select(correctness) %>% 
-  t() %>% 
-  as.vector()
-q18_test <- test_cp3
-q18_test$correctness <- correctness 
+  summarise(correctness = mean(correct)) 
+q18_test <- left_join(q18_test, correctness, by = "session_id")
+results[(17*n+1):(18*n), 1] <- q18_test$session_id
 results[(17*n+1):(18*n), 2] <- predict(q18_rf, q18_test) %>% as.numeric() - 1
 
 results$session_id <- paste0(results$session_id, "_q", results$question)
