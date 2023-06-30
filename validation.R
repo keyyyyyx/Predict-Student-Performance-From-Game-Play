@@ -3,6 +3,7 @@
 library(tidyverse)
 library(randomForest)
 library(caret)
+library(pROC)
 
 ### -----------------------------------------------------------
 ### Load data sets
@@ -587,6 +588,17 @@ ggplot(data = acc_by_question, mapping = aes(x = as.factor(question), y = accura
 dev.off()
 
 ### -----------------------------------------------------------
+### Compute AUC by question
+auc_by_question <- results %>% 
+  group_by(question) %>% 
+  summarize(auc = auc(label, correct))
+# q1
+auc(results[results$question ==1, "correct"], results[results$question == 1, "label"])
+# overall auc
+auc(results$correct, results$label) # 0.6977
+plot(roc(results$correct, results$label))
+
+### -----------------------------------------------------------
 ### Test other models for better accuracy on question 1 
 
 # logistic regression
@@ -669,12 +681,139 @@ mean(q1_out_svm4 == labels[(labels$question == 1) & (labels$session_id %in% val_
 
 # gradient boosting
 library(xgboost)
-q1_gb <- train(
-  q1 ~ ., data = q1_balanced[, -1], method = "xgbTree",
-  trControl = trainControl("cv", number = 10)
+library(mlr)
+# question 1
+# balanced data with customized parameters
+xgb_train_q1 <- xgb.DMatrix(data = as.matrix(q1_balanced[, -c(1, 28)]), label = (as.numeric(q1_balanced$q1) - 1))
+q1_test <- left_join(q1_test, labels[(labels$question == 1) & (labels$session_id %in% val_ids), c(1, 2)], by = "session_id")
+xgb_test <- xgb.DMatrix(data = as.matrix(q1_test[, -c(1, 28)]), label = (as.numeric(q1_test$correct) - 1))
+xgb_params <- list(
+  booster = "gbtree",
+  eta = 0.01,
+  max_depth = 10,
+  gamma = 4,
+  max_delta_step = 1,
+  subsample = 0.75,
+  colsample_bytree = 1,
+  objective = "binary:hinge",
+  eval_metric = "auc"
 )
-q1_out_gb <- predict(q1_gb, q1_test[, -1])
-mean(q1_out_gb == labels[(labels$question == 1) & (labels$session_id %in% val_ids), "correct"]) # 0.645; lower than rf
+# compute the best nrounds
+q1_xgbcv <- xgb.cv( params = xgb_params, data = xgb_train_q1, nrounds = 5000, nfold = 5, showsd = T, stratified = T, print_every_n = 100, maximize = F, metrics = "error")
+plot(q1_xgbcv$evaluation_log$iter, q1_xgbcv$evaluation_log$test_auc_mean)
+plot(q1_xgbcv$evaluation_log$iter, q1_xgbcv$evaluation_log$test_error_mean)
+which.min(q1_xgbcv$evaluation_log$test_error_mean) # 4965
+which.max(q1_xgbcv$evaluation_log$test_auc_mean) # 4965
+q1_gb <- xgb.train(params = xgb_params, data = xgb_train_q1, nrounds = 4965, verbose = 1)
+q1_out_gb <- predict(q1_gb, as.matrix(q1_test[, -c(1, 28)]))
+confusionMatrix(as.factor(q1_out_gb), as.factor(q1_test$correct)) # acc = 0.7051     
+mean(q1_out_gb == q1_test$correct) # 0.7051334; lower than rf
+auc(q1_out_gb, q1_test$correct) # 0.5848
+
+# try default params
+xgb_params <- list(
+  booster = "gbtree",
+  eta = 0.3,
+  max_depth = 6,
+  gamma = 0,
+  max_delta_step = 1,
+  subsample = 0.75,
+  colsample_bytree = 1,
+  objective = "binary:hinge",
+  eval_metric = "auc"
+)
+# compute the best nrounds
+q1_xgbcv <- xgb.cv( params = xgb_params, data = xgb_train_q1, nrounds = 5000, nfold = 5, showsd = T, stratified = T, print_every_n = 100, maximize = F, metrics = "error")
+plot(q1_xgbcv$evaluation_log$iter, q1_xgbcv$evaluation_log$test_auc_mean)
+plot(q1_xgbcv$evaluation_log$iter, q1_xgbcv$evaluation_log$test_error_mean)
+which.min(q1_xgbcv$evaluation_log$test_error_mean) # 3630
+which.max(q1_xgbcv$evaluation_log$test_auc_mean) # 3630
+q1_gb <- xgb.train(params = xgb_params, data = xgb_train_q1, nrounds = 3630, verbose = 1)
+q1_out_gb <- predict(q1_gb, as.matrix(q1_test[, -c(1, 28)]))
+confusionMatrix(as.factor(q1_out_gb), as.factor(q1_test$correct)) # acc = 0.6605
+mean(q1_out_gb == q1_test$correct) # 0.6604689; lower than rf
+auc(q1_out_gb, q1_test$correct) # 0.5615
+
+# try imbalanced data ** best 
+xgb_train_q1 <- xgb.DMatrix(data = as.matrix(q1[, -c(1, 28)]), label = (as.numeric(q1$q1) - 1))
+xgb_params <- list(
+  booster = "gbtree",
+  eta = 0.01,
+  max_depth = 10,
+  gamma = 4,
+  max_delta_step = 1,
+  subsample = 0.75,
+  colsample_bytree = 1,
+  objective = "binary:hinge",
+  eval_metric = "auc"
+)
+# compute the best nrounds
+q1_xgbcv <- xgb.cv( params = xgb_params, data = xgb_train_q1, nrounds = 5000, nfold = 5, showsd = T, stratified = T, print_every_n = 100, maximize = F, metrics = "error")
+plot(q1_xgbcv$evaluation_log$iter, q1_xgbcv$evaluation_log$test_auc_mean)
+plot(q1_xgbcv$evaluation_log$iter, q1_xgbcv$evaluation_log$test_error_mean)
+which.min(q1_xgbcv$evaluation_log$test_error_mean) # 356
+which.max(q1_xgbcv$evaluation_log$test_auc_mean) # 4839
+q1_gb <- xgb.train(params = xgb_params, data = xgb_train_q1, nrounds = 356, verbose = 1)
+q1_out_gb <- predict(q1_gb, as.matrix(q1_test[, -c(1, 28)]))
+confusionMatrix(as.factor(q1_out_gb), as.factor(q1_test$correct)) # acc = 0.7364592
+mean(q1_out_gb == q1_test$correct) # 0.7364592; 
+auc(q1_out_gb, q1_test$correct) # 0.673
+
+# optimize other parameters
+# create tasks
+traintask <- makeClassifTask(data = q1[, -1], target = "q1")
+testtask <- makeClassifTask(data = q1_test[, -1], target = "correct")
+# do one hot encoding`<br/> 
+traintask <- createDummyFeatures(obj = traintask) 
+testtask <- createDummyFeatures (obj = testtask)
+# create learner
+lrn <- makeLearner("classif.xgboost", predict.type = "response")
+lrn$par.vals <- list(objective="binary:hinge", eval_metric = "auc", nrounds=1000L, booster = "gbtree")
+# set parameter space
+params_try <- makeParamSet(makeIntegerParam("max_depth",lower = 3L,upper = 15L), 
+                           makeNumericParam("subsample",lower = 0.5,upper = 1),
+                           makeNumericParam("colsample_bytree",lower = 0.5,upper = 1),
+                           makeNumericParam("eta",lower = 0.01,upper = 0.5),
+                           makeNumericParam("gamma",lower = 0,upper = 10),
+                           makeIntegerParam("max_delta_step",lower = 1L,upper = 10L))
+# set resampling strategy
+rdesc <- makeResampleDesc("CV", stratify = T, iters = 5L)
+# search strategy
+ctrl <- makeTuneControlRandom(maxit = 10L)
+# set parallel backend
+library(parallel)
+library(parallelMap) 
+parallelStartSocket(cpus = detectCores())
+#parameter tuning
+mytune <- tuneParams(learner = lrn, task = traintask, resampling = rdesc, measures = acc, par.set = params_try, control = ctrl, show.info = T)
+mytune$y 
+# [Tune] Result: max_depth=5; subsample=0.822; colsample_bytree=0.536; eta=0.111; gamma=9.57; max_delta_step=9 : acc.test.mean=0.7318900
+# [Tune] Result: max_depth=6; subsample=0.655; colsample_bytree=0.615; eta=0.0331; gamma=9.38; max_delta_step=6 : acc.test.mean=0.7328081
+# fit using tune result
+# try imbalanced data ** best 
+xgb_train_q1 <- xgb.DMatrix(data = as.matrix(q1[, -c(1, 28)]), label = (as.numeric(q1$q1) - 1))
+xgb_params <- list(
+  booster = "gblinear",
+  eta = 0.0331,
+  max_depth = 6,
+  gamma = 9.38,
+  max_delta_step = 6,
+  subsample = 0.655,
+  colsample_bytree = 0.615,
+  objective = "binary:hinge",
+  eval_metric = "auc"
+)
+# compute the best nrounds
+q1_xgbcv <- xgb.cv(params = xgb_params, data = xgb_train_q1, nrounds = 1000, nfold = 5, showsd = T, stratified = T, print_every_n = 100, maximize = T, metrics = "auc")
+plot(q1_xgbcv$evaluation_log$iter, q1_xgbcv$evaluation_log$test_auc_mean)
+plot(q1_xgbcv$evaluation_log$iter, q1_xgbcv$evaluation_log$test_error_mean)
+which.min(q1_xgbcv$evaluation_log$test_error_mean) # 356
+which.max(q1_xgbcv$evaluation_log$test_auc_mean) # 4839
+q1_gb <- xgb.train(params = xgb_params, data = xgb_train_q1, nrounds = 59, verbose = 1)
+q1_out_gb <- predict(q1_gb, as.matrix(q1_test[, -c(1, 28)]))
+confusionMatrix(as.factor(q1_out_gb), as.factor(q1_test$correct)) # acc = 0.7314
+mean(q1_out_gb == q1_test$correct) # 00.7314
+auc(q1_out_gb, q1_test$correct) #  0.6243
 
 # Boosted logistic regression
 q1_lb <- train(
