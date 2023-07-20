@@ -367,7 +367,7 @@ cp3_val <- cp3_val %>% filter(session_id %in% val_ids)
 ### -----------------------------------------------------------
 ### Predict
 
-# find optimal threshold 
+# initialize df to store results
 n <- length(val_ids)
 results <- as.data.frame(matrix(nrow = 18 * n, ncol = 3)) 
 colnames(results) <- c("session_id", "correct", "question")
@@ -593,7 +593,21 @@ auc_by_question <- results %>%
   group_by(question) %>% 
   summarize(auc = auc(label, correct))
 # q1
-auc(results[results$question ==1, "correct"], results[results$question == 1, "label"])
+auc(results[results$question == 1, "correct"], results[results$question == 1, "label"]) # 0.6274; lower than xgboost
+# q2
+auc(results[results$question == 2, "correct"], results[results$question == 2, "label"]) # 0.4897; lower than xgboost
+# q3
+auc(results[results$question == 3, "correct"], results[results$question == 3, "label"]) # 0.6328; 
+# q4
+auc(results[results$question == 4, "correct"], results[results$question == 4, "label"]) # 0.6984; lower than xgboost
+# q5
+auc(results[results$question == 5, "correct"], results[results$question == 5, "label"]) # 0.6225; higher than xgboost
+# q6
+auc(results[results$question == 6, "correct"], results[results$question == 6, "label"]) # 0.6541; higher than xgboost
+# q7
+auc(results[results$question == 7, "correct"], results[results$question == 7, "label"]) # 0.6123; lower than xgboost
+# q8
+auc(results[results$question == 8, "correct"], results[results$question == 8, "label"]) # 0.5845; lower than xgboost
 # overall auc
 auc(results$correct, results$label) # 0.6977
 plot(roc(results$correct, results$label))
