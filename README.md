@@ -9,6 +9,7 @@ The dataset used in this project contains information about game settings, user 
 The project is organized as follows:
 
 - `data/`: This directory contains the dataset files. Note that train.csv and test.csv are not included and will be added once the competition dataset is public.
+- `img/`: This directory contains the images of output visualizations.
 - `dataProcessing.R`: This file contains R scripts that prepare the data for analysis.
 - `validation.R`: This file contains R scripts that perform model selection and validation.
 - `xgboost.R`: This file contains R scripts that performs parameter tuning, model training, and model validation using the gradient boosting algorithm.
